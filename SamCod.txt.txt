@@ -1,0 +1,298 @@
+
+
+Codings-
+=================================================================================================================================================================================================================
+
+1. Scripting to Monitor Linux machines -
+
+
+#!/bin/bash
+## This is a sample script to check Linux Server health
+## Scriptname: check_health.sh
+## Owner: <your name>
+## Date Created: 11/01/2016
+#-----------------------------------------------------------------------------------------------------------------------
+
+function healthchk {
+echo -e "
+#####################################################################
+  Health Check Report (CPU,Process,Disk Usage, Memory)
+#####################################################################
+
+Hostname : `hostname`
+Kernel Version : `uname -r`
+Uptime : `uptime | sed 's/.*up \([^,]*\), .*/\1/'`
+Last Reboot Time : `who -b | awk '{print $3,$4}'`
+
+*********************************************************************
+CPU Load - > Threshold < 1 Normal > 1 Caution , > 2 Unhealthy
+*********************************************************************
+"
+
+cpus=`lscpu | grep -e "^CPU(s):" | cut -f2 -d: | awk '{print $1}'`
+i=0
+while [ $i -lt $cpus ]
+do
+  echo "CPU$i : `mpstat -P ALL | awk -v var=$i '{ if ($3 == var ) print $4 }' `"
+  let i=$i+1
+done
+
+echo -e "
+Load Average : `uptime | awk -F'load average:' '{ print $2 }' | cut -f1 -d,`
+
+Heath Status : `uptime | awk -F'load average:' '{ print $2 }' | cut -f1 -d, | awk '{if ($1 > 2) print "Unhealthy"; else if ($1 > 1) print "Caution"; else print "Normal"}'`
+"
+
+echo -e "
+*********************************************************************
+  Process
+*********************************************************************
+
+=> Top memory using processs/application
+
+PID %MEM RSS COMMAND
+`ps aux | awk '{print $2, $4, $6, $11}' | sort -k3rn | head -n 10`
+
+=> Top CPU using process/application
+`top b -n1 | head -17 | tail -11`
+
+*********************************************************************
+Disk Usage - > Threshold < 90 Normal > 90% Caution > 95 Unhealthy
+*********************************************************************
+"
+
+df -Pkh | grep -v 'Filesystem' > /tmp/df.status
+while read DISK
+do
+  LINE=`echo $DISK | awk '{print $1,"\t",$6,"\t",$5," used","\t",$4," free space"}'`
+  echo -e $LINE
+  echo
+done < /tmp/df.status
+
+echo -e "
+
+Heath Status"
+
+echo
+
+while read DISK
+do
+  USAGE=`echo $DISK | awk '{print $5}' | cut -f1 -d%`
+  if [ $USAGE -ge 95 ] ; then
+     STATUS='Unhealty'
+     elif [ $USAGE -ge 90 ]; then
+       STATUS='Caution'
+         else
+           STATUS='Normal'
+  fi
+  LINE=`echo $DISK | awk '{print $1,"\t",$6}'`
+  echo -ne $LINE "\t\t" $STATUS
+  echo
+done < /tmp/df.status
+
+rm /tmp/df.status
+
+TOTALMEM=`free -m | head -2 | tail -1| awk '{print $2}'`
+TOTALBC=`echo "scale=2;if($TOTALMEM<1024 && $TOTALMEM > 0) print 0;$TOTALMEM/1024"| bc -l`
+USEDMEM=`free -m | head -2 | tail -1| awk '{print $3}'`
+USEDBC=`echo "scale=2;if($USEDMEM<1024 && $USEDMEM > 0) print 0;$USEDMEM/1024"|bc -l`
+FREEMEM=`free -m | head -2 | tail -1| awk '{print $4}'`
+FREEBC=`echo "scale=2;if($FREEMEM<1024 && $FREEMEM > 0) print 0;$FREEMEM/1024"|bc -l`
+TOTALSWAP=`free -m | tail -1| awk '{print $2}'`
+TOTALSBC=`echo "scale=2;if($TOTALSWAP<1024 && $TOTALSWAP > 0) print 0;$TOTALSWAP/1024"| bc -l`
+USEDSWAP=`free -m | tail -1| awk '{print $3}'`
+USEDSBC=`echo "scale=2;if($USEDSWAP<1024 && $USEDSWAP > 0) print 0;$USEDSWAP/1024"|bc -l`
+FREESWAP=`free -m | tail -1| awk '{print $4}'`
+FREESBC=`echo "scale=2;if($FREESWAP<1024 && $FREESWAP > 0) print 0;$FREESWAP/1024"|bc -l`
+
+echo -e "
+*********************************************************************
+  Memory
+*********************************************************************
+
+=> Physical Memory
+
+Total\tUsed\tFree\t%Free
+
+${TOTALBC}GB\t${USEDBC}GB \t${FREEBC}GB\t$(($FREEMEM * 100 / $TOTALMEM ))%
+
+=> Swap Memory
+
+Total\tUsed\tFree\t%Free
+
+${TOTALSBC}GB\t${USEDSBC}GB\t${FREESBC}GB\t$(($FREESWAP * 100 / $TOTALSWAP ))%
+"
+}
+FILENAME="health-`hostname`-`date +%y%m%d`-`date +%H%M`.txt"
+healthchk > $FILENAME
+echo -e "Reported file $FILENAME generated in current directory."
+
+==================================================================================================================================================================================================================================================================================================================================================================================================================================
+
+
+2. Shell script to install Elasticsearch
+
+
+#!/bin/bash
+## This is a sample shell script to install Elastisearch on a Linux machine
+## The script assumes only one pre requisite of java installation
+## Scriptname: install_elastisearch.sh
+## Owner: <your name>
+## Date created: 11/01/2016
+#-------------------------------------------------------------------------------------------------
+echo "Checking if java is installed...."
+java -version > /dev/null 2>&1
+v_exitcode=`echo $?`
+if [ $v_exitcode != 0 ] ;then
+  echo "Java not installed, Elastisearch needs java to be installed first, Aborting..."
+  exit 99
+fi
+echo "Found Java..."
+echo "Installing Elastisearch ....."
+rpm -ivh elasticsearch-1.7.3.noarch.rpm
+sleep 1
+echo " The following Elastisearch package has been installed "
+rpm -qi elasticsearch
+
+==================================================================================================================================================================================================================================================================================================================================================================================================================================
+
+
+3.Jenkins Scripted Job that will run a docker container.
+
+Case.1 - Scripting
+
+#!/bin/bash
+## This is a sample shell script to run Docker Container through Jenkins
+## Scriptname: install_dockercontainer.sh
+## Owner: <your name>
+## Date created: 11/01/2016
+#-------------------------------------------------------------------------------------------------
+#Jenkins installation script in Linux RHEL
+#
+# chkconfig: - 85 15
+# description: Jakarta Tomcat Java Servlets and JSP server
+# processname: jenkins
+# pidfile: /home/jenkins/jenkins-tomcat.pid
+###############################################################################################
+Set Tomcat environment.
+JENKINS_USER=jenkins
+LOCKFILE=/var/lock/jenkins
+export PATH=/usr/local/bin:$PATH
+export HOME=/home/jenkins
+export JAVA_HOME=/usr/lib/jvm/java-6-sun
+export JENKINS_BASEDIR=/home/jenkins
+export TOMCAT_HOME=$JENKINS_BASEDIR/apache-tomcat-6.0.18
+export CATALINA_PID=$JENKINS_BASEDIR/jenkins-tomcat.pid
+export CATALINA_OPTS="-DJENKINS_HOME=$JENKINS_BASEDIR/jenkins-home -Xmx512m -Djava.awt.headless=true"
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+[ -f $TOMCAT_HOME/bin/catalina.sh ] || exit 0
+
+export PATH=$PATH:/usr/bin:/usr/local/bin
+
+# See how we were called.
+case "$1" in
+  start)
+        # Start daemon.
+        echo -n "Starting Tomcat: "
+        su -p -s /bin/sh $JENKINS_USER -c "$TOMCAT_HOME/bin/catalina.sh start"
+        RETVAL=$?
+        echo
+        [ $RETVAL = 0 ] && touch $LOCKFILE
+        ;;
+  stop)
+        # Stop daemons.
+        echo -n "Shutting down Tomcat: "
+        su -p -s /bin/sh $JENKINS_USER -c "$TOMCAT_HOME/bin/catalina.sh stop"
+        RETVAL=$?
+        echo
+        [ $RETVAL = 0 ] && rm -f $LOCKFILE
+        ;;
+  restart)
+        $0 stop
+        $0 start
+        ;;
+  condrestart)
+       [ -e $LOCKFILE ] && $0 restart
+       ;;
+  status)
+        status -p $CATALINA_PID -l $(basename $LOCKFILE) jenkins
+        ;;
+  *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+esac
+exit
+----------------------------------------------------------------------------------------------------
+USER root
+RUN apt-get update \
+      && apt-get install -y sudo \
+      && rm -rf /var/lib/apt/lists/*
+RUN echo "jenkins ALL=NOPASSWD: ALL" >> /etc/sudoers
+
+USER jenkins
+COPY plugins.txt /usr/share/jenkins/plugins.txt
+RUN /usr/local/bin/plugins.sh /usr/share/jenkins/plugins.txt
+
+$ cat plugins.txt
+scm-api:latest
+git-client:latest
+git:latest
+greenballs:latest
+
+$ docker build -t myjenk .
+Successfully built 471fc0d22bff
+$ docker run -d -v /var/run/docker.sock:/var/run/docker.sock \
+                -v $(which docker):/usr/bin/docker -p 8080:8080 myjenk
+
+node("docker") 
+{
+    docker.withRegistry('<<your-docker-registry>>', '<<your-docker-registry-credentials-id>>')
+    
+        git url: "<<https://github.com/docker-library/official-images.git>>", 
+	credentialsId: '<<https://github.com/jwilder/docker-container.git>>'
+    
+        sh "git rev-parse HEAD > .git/commit-id"
+        def commit_id = readFile('.git/commit-id').trim()
+        println commit_id
+    
+        stage "build"
+        def app = docker.build "your-project-name"
+    
+        stage "publish"
+        app.push 'master'
+        app.push "${commit_id}"
+    }
+----------------------------------------------------------------------------------------------
+Docker container will trigger the build and run through the Jenkins.
+=================================================================================================================================================================================================================
+
+Case.2 - Graphically
+
+step-1: Save the line to a shell script  for eg. dock.sh
+
+
+#Start container as a daemon; adding a infinite while loop to run in foreground. This keeps the container running 
+docker run --name <container-name> -d <OS-Name> /bin/sh -c "while true; do ping 127.0.0.1; done"
+#verify container is running
+docker ps
+#re-attach to the container
+docker exec -it <container-name> /bin/bash
+
+
+
+step-2: Create a Jenkins shell script job
+	On the Jenkins front page, click New Item.
+	Enter a name in the Item name field e.g. 
+	Select Freestyle project.
+	On the configuration page, Use custom workspace.
+	Enter the directory with your shell script 
+	Click Add build step and select Execute shell.
+	Enter below and Save
+		dock.sh
+	click Build Now.
+	You should see a new job scheduled in the Build History table.
+=================================================================================================================================================================================================================
+=================================================================================================================================================================================================================
