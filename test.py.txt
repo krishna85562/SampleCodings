@@ -1,0 +1,28 @@
+#!/usr/bin/python
+
+import os
+import urllib2
+
+PROTOCOL='https'
+ADDRESS='127.0.0.1'
+
+config = ['/opt/apache/','/opt/apache/htdocs','/opt/apache/conf.d/app.conf']
+
+def check_config():
+  for conf in config:
+    if os.path.exists(conf):
+      print "%s Pass" %(conf)
+    else:
+      print "%s Does not exist" %(conf)
+
+def check_service():
+  url = PROTOCOL+'://'+ADDRESS
+  info = urllib2.urlopen(url)
+  print info
+  if not 'WORKS' in info:
+    print "Critical - Web page not loaded"
+  else:
+    print "Healthy - Web page loaded"
+
+print check_config()
+print check_service()
